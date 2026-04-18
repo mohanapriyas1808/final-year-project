@@ -1,0 +1,42 @@
+# Virtual environment
+new_final_year_project/
+
+# Node modules
+node_modules/
+smart-bus-frontend/node_modules/
+
+# Environment variables (sensitive - don't push to git)
+.env
+backend/.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+backend/__pycache__/
+
+# Lambda zip files
+*.zip
+
+# Database files
+*.db
+backend/instance/
+
+# Temp/debug scripts
+check_students.py
+force_waiting.py
+test_sns.py
+migrate_to_dynamodb.py
+
+# Images (large files)
+*.png
+*.jpeg
+*.jpg
+*.svg
+arch.png
+driver.png
+image.png
+out.txt
+
+# Build output
+smart-bus-frontend/build/

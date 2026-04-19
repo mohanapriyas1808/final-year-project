@@ -48,6 +48,8 @@ def deploy(zip_bytes):
             FunctionName=FUNCTION_NAME,
             ZipFile=zip_bytes
         )
+        waiter = lambda_client.get_waiter('function_updated')
+        waiter.wait(FunctionName=FUNCTION_NAME)
         lambda_client.update_function_configuration(
             FunctionName=FUNCTION_NAME,
             Environment={'Variables': env_vars}

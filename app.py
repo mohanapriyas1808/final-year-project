@@ -178,9 +178,8 @@ def login():
     data = request.json
     u = get_user(data['username'])
     if u and check_password_hash(u['password'], data.get('password', '')):
-        # Reset stale flags on every login
+        # Only reset alert flags, NOT is_waiting (student may already be at stop)
         update_user(u['username'], {
-            'is_waiting': False,
             'predictive_alert_sent': False,
             'arrival_alert_sent': False,
             'alert_sent_at': None

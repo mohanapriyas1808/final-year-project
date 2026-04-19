@@ -133,9 +133,11 @@ def log_ingestion(payload):
         'timestamp':        payload['ingested_at'],
         'alert_type':       'INGESTION',
         'message':          json.dumps({
+            'bus_id':           payload['bus_id'],
             'lat':              payload['latitude'],
             'lon':              payload['longitude'],
             'speed':            payload['speed'],
+            'traffic_index':    payload['traffic_index'],
             'nearest_stop':     payload['nearest_stop'],
             'dist_to_college_m': payload['dist_to_college_m']
         })

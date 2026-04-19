@@ -69,11 +69,38 @@ osrm_cache = {}
 osrm_cache_pos = {"lat": None, "lon": None}
 CACHE_MOVE_THRESHOLD = 50
 
-# Load ML Model
-model = xgb.XGBRegressor()
-if os.path.exists(MODEL_PATH):
-    model.load_model(MODEL_PATH)
-    print("XGBoost Model Loaded")
+# Load ML Model — use SageMaker endpoint if configured, else local model
+SAGEMAKER_ENDPOINT = os.environ.get('SAGEMAKER_ENDPOINT', '')
+model = None
+
+if SAGEMAKER_ENDPOINT:
+    sm_runtime = boto3.client('sagemaker-runtime',
+        aws_access_key_id=AWS_ACCESS_KEY,
+        aws_secret_access_key=AWS_SECRET_KEY,
+        region_name=AWS_REGION)
+    print(f"SageMaker Endpoint: {SAGEMAKER_ENDPOINT}")
+else:
+    model = xgb.XGBRegressor()
+    if os.path.exists(MODEL_PATH):
+        model.load_model(MODEL_PATH)
+        print("XGBoost Model Loaded (local)")
+
+def predict_with_model(features_df):
+    """Predict ETA using SageMaker serverless endpoint or local model."""
+    if SAGEMAKER_ENDPOINT:
+        try:
+            csv_input = ','.join(str(v) for v in features_df.iloc[0].values)
+            response = sm_runtime.invoke_endpoint(
+                EndpointName=SAGEMAKER_ENDPOINT,
+                ContentType='text/csv',
+                Body=csv_input
+            )
+            return float(response['Body'].read().decode())
+        except Exception as e:
+            print(f"[SAGEMAKER ERROR] {e} — falling back to local model")
+            return float(model.predict(features_df)[0]) if model else 10.0
+    else:
+        return float(model.predict(features_df)[0])
 
 # --- DYNAMODB HELPERS ---
 def get_user(username):
@@ -270,7 +297,7 @@ def update_location():
             'hour': now.hour, 'day_of_week': now.weekday(),
             'traffic_index': data['traffic_index']
         }])
-        eta = float(model.predict(feat)[0])
+        eta = predict_with_model(feat)
         updates = {}
 
         # Predictive Alert
@@ -321,7 +348,7 @@ def predict_eta():
         'day_of_week':    now.weekday(),
         'traffic_index':  traffic
     }])
-    eta = float(model.predict(feat)[0])
+    eta = predict_with_model(feat)
     return jsonify({'eta_mins': round(eta, 1), 'dist_m': int(dist)})
 
 @app.route('/api/bus_status', methods=['GET'])
@@ -344,7 +371,7 @@ def get_bus_status():
                 'hour': datetime.now().hour, 'day_of_week': datetime.now().weekday(),
                 'traffic_index': latest_bus_data['traffic_index']
             }])
-            ml_eta = float(model.predict(feat)[0])
+            ml_eta = predict_with_model(feat)
             cur_eta = max(ml_eta, dur/60) * (1 + latest_bus_data['traffic_index'] * 0.2)
             if cur_eta <= last_eta: cur_eta = last_eta + 2.1
             last_eta = cur_eta

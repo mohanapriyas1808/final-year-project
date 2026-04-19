@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 REGION          = os.environ.get('AWS_REGION', 'ap-south-1')
+ACCOUNT_ID      = '868295556072'
 TRACKER_NAME    = 'SmartBusTracker'
 MAP_NAME        = 'SmartBusMap'
 GEOFENCE_NAME   = 'SmartBusGeofences'
@@ -84,13 +85,36 @@ def setup():
     except location.exceptions.ConflictException:
         print(f"[GEOFENCE] Collection already exists: {GEOFENCE_NAME}")
 
+    # 3. Link Tracker to Geofence Collection
+    try:
+        location.associate_tracker_consumer(
+            TrackerName=TRACKER_NAME,
+            ConsumerArn=f"arn:aws:geo:{REGION}:{ACCOUNT_ID}:geofence-collection/{GEOFENCE_NAME}"
+        )
+        print(f"[LINK] Tracker '{TRACKER_NAME}' linked to '{GEOFENCE_NAME}'")
+    except location.exceptions.ConflictException:
+        print(f"[LINK] Already linked")
+    except Exception as e:
+        print(f"[LINK ERROR] {e}")
+
     print("\nSetup complete. Resources ready for demo.")
     print(f"  Tracker:   {TRACKER_NAME}")
     print(f"  Geofences: {GEOFENCE_NAME}")
+    print(f"  Linked:    Yes — AWS will auto-detect bus entering each stop zone")
 
 
 def cleanup():
     print("Cleaning up AWS Location Service resources...\n")
+
+    # Disassociate tracker from geofence collection first
+    try:
+        location.disassociate_tracker_consumer(
+            TrackerName=TRACKER_NAME,
+            ConsumerArn=f"arn:aws:geo:{REGION}:{ACCOUNT_ID}:geofence-collection/{GEOFENCE_NAME}"
+        )
+        print(f"[LINK] Disassociated tracker from geofence collection")
+    except Exception as e:
+        print(f"[LINK] {e}")
 
     # Delete Tracker
     try:

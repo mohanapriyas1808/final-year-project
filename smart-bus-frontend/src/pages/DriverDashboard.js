@@ -17,8 +17,10 @@ let DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 // --- CONFIG ---
-const BACKEND_URL = `http://${window.location.hostname}:5000`;
+const BACKEND_URL  = `http://${window.location.hostname}:5000`;
 const COLLEGE_COORDS = [12.8716, 80.2201];
+// API Gateway URL — updated after running setup_api_gateway.py
+const INGEST_URL = process.env.REACT_APP_INGEST_URL || BACKEND_URL + '/update_location';
 
 // --- ICONS ---
 const busMarkerIcon = L.divIcon({
@@ -64,12 +66,13 @@ function DriverDashboard() {
 
     // --- SEND LOCATION (Heartbeat) ---
     const sendLocationToBackend = useCallback((lat, lon, speed) => {
-        axios.post(`${BACKEND_URL}/update_location`, {
-            bus_id: busId,
-            driver_name: driverName,
-            latitude: lat,
-            longitude: lon,
-            speed: parseFloat(speed),
+        // Send to API Gateway → DataIngestion Lambda → DynamoDB + S3
+        axios.post(INGEST_URL, {
+            bus_id:        busId,
+            driver_name:   driverName,
+            latitude:      lat,
+            longitude:     lon,
+            speed:         parseFloat(speed),
             traffic_index: trafficIndex
         }).catch(() => console.log("Update failed"));
     }, [trafficIndex, driverName, busId]);

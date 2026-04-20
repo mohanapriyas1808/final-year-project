@@ -15,18 +15,73 @@ let DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// --- CONFIG ---
-const HARDCODED_STOPS = {
-    "thiruvanmiyur (start)": [12.9830, 80.2594],
-    "palavakkam":            [12.9564, 80.2508],
-    "chinna neelankarai":    [12.9525, 80.2505],
-    "neelankarai (ecr)":     [12.9497, 80.2500],
-    "vettuvankani":          [12.9360, 80.2485],
-    "injambakkam":           [12.9190, 80.2460],
-    "akkarai (link road)":   [12.8913, 80.2392],
-    "sholinganallur (omr)":  [12.8961, 80.2310],
-    "sjit college gate":     [12.8716, 80.2201],
+// --- ROUTES CONFIG ---
+const ROUTES = {
+    // Route 1: Thiruvanmiyur → SJIT (ECR route)
+    route1: {
+        name: "Thiruvanmiyur → SJIT",
+        stops: {
+            "thiruvanmiyur (start)": [12.9830, 80.2594],
+            "palavakkam":            [12.9564, 80.2508],
+            "chinna neelankarai":    [12.9525, 80.2505],
+            "neelankarai (ecr)":     [12.9497, 80.2500],
+            "vettuvankani":          [12.9360, 80.2485],
+            "injambakkam":           [12.9190, 80.2460],
+            "akkarai (link road)":   [12.8913, 80.2392],
+            "sholinganallur (omr)":  [12.8961, 80.2310],
+            "sjit college gate":     [12.8716, 80.2201],
+        }
+    },
+    // Route 2: Tidel Park → SJIT
+    route2: {
+        name: "Tidel Park → SJIT",
+        stops: {
+            "tidel park":            [12.9897, 80.2479],
+            "srp tools":             [12.9750, 80.2450],
+            "perungudi":             [12.9667, 80.2417],
+            "thuraipaakam":          [12.9500, 80.2350],
+            "karapakkam":            [12.9350, 80.2300],
+            "sholinganallur (omr)":  [12.8961, 80.2310],
+            "ponni amman koil":      [12.8900, 80.2280],
+            "sathyabama university": [12.8800, 80.2250],
+            "sjit college gate":     [12.8716, 80.2201],
+        }
+    },
+    // Route 3: Kelambakkam → SJIT
+    route3: {
+        name: "Kelambakkam → SJIT",
+        stops: {
+            "kelambakkam":           [12.7833, 80.2167],
+            "chettinadu hospital":   [12.8000, 80.2200],
+            "padur":                 [12.8167, 80.2233],
+            "kazhipattur":           [12.8333, 80.2267],
+            "hindustan college":     [12.8500, 80.2300],
+            "sipcot":                [12.8600, 80.2267],
+            "navalur":               [12.8650, 80.2233],
+            "ags complex":           [12.8683, 80.2217],
+            "sjit college gate":     [12.8716, 80.2201],
+        }
+    }
 };
+
+// Route 1 stops
+const ROUTE1_STOPS = Object.keys(ROUTES.route1.stops);
+// Route 2 stops
+const ROUTE2_STOPS = Object.keys(ROUTES.route2.stops);
+// Route 3 stops
+const ROUTE3_STOPS = Object.keys(ROUTES.route3.stops);
+
+// Determine which route a student belongs to based on boarding point
+const getStudentRoute = (boardingPoint) => {
+    if (!boardingPoint) return ROUTES.route1;
+    const bp = boardingPoint.trim().toLowerCase();
+    if (ROUTE2_STOPS.includes(bp)) return ROUTES.route2;
+    if (ROUTE3_STOPS.includes(bp)) return ROUTES.route3;
+    return ROUTES.route1;
+};
+
+// Keep backward compat
+const HARDCODED_STOPS = ROUTES.route1.stops;
 const BACKEND_URL = `http://${window.location.hostname}:5000`;
 const COLLEGE_GATE = [12.8716, 80.2201];
 const busIcon = L.divIcon({ 
@@ -49,8 +104,11 @@ function RecenterMap({ lat, lon }) {
 }
 
 function Dashboard() {
-    // Current Student: Priya
     const user = JSON.parse(localStorage.getItem('user')) || { username: "Priya", boarding_point: "Palavakkam" };
+
+    // Get the correct route for this student
+    const studentRoute = getStudentRoute(user.boarding_point);
+    const routeStops   = studentRoute.stops;
     
     const [bus, setBus] = useState({ 
         lat: COLLEGE_GATE[0], lon: COLLEGE_GATE[1], speed: 0, 
@@ -232,19 +290,20 @@ function Dashboard() {
                         </div>
                     )}
 
-                    <h4 style={{...styles.sectionTitle, marginTop: '30px'}}>🗺️ FULL ROUTE PROGRESS</h4>
+                    <h4 style={{...styles.sectionTitle, marginTop: '30px'}}>🗺️ FULL ROUTE PROGRESS — {studentRoute.name}</h4>
                     <div style={styles.stopList}>
-                        {bus.upcoming_stops.map((stop, i) => (
+                        {/* Show student's route stops — highlight their stop */}
+                        {Object.entries(routeStops).map(([stopName, coords], i) => (
                             <div key={i} style={{
-                                ...styles.stopRow, 
-                                backgroundColor: isMyStop(stop.name) ? '#e3f2fd' : 'transparent',
-                                borderLeft: isMyStop(stop.name) ? '4px solid #3498db' : 'none'
+                                ...styles.stopRow,
+                                backgroundColor: isMyStop(stopName) ? '#e3f2fd' : 'transparent',
+                                borderLeft: isMyStop(stopName) ? '4px solid #3498db' : 'none'
                             }}>
-                                <div style={{...styles.stopIndicator, background: isMyStop(stop.name) ? '#3498db' : '#bdc3c7'}}></div>
-                                <div style={{...styles.stopName, fontWeight: isMyStop(stop.name) ? 'bold' : 'normal'}}>
-                                    {stop.name}
+                                <div style={{...styles.stopIndicator, background: isMyStop(stopName) ? '#3498db' : '#bdc3c7'}}></div>
+                                <div style={{...styles.stopName, fontWeight: isMyStop(stopName) ? 'bold' : 'normal'}}>
+                                    {stopName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
                                 </div>
-                                {isMyStop(stop.name) && <div style={styles.liveTag}>YOU</div>}
+                                {isMyStop(stopName) && <div style={styles.liveTag}>YOU</div>}
                             </div>
                         ))}
                     </div>

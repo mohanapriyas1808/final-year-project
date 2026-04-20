@@ -32,6 +32,7 @@ export default function AdminDashboard() {
     const [drivers, setDrivers] = useState([]);
     const [students, setStudents] = useState([]);
     const [selected, setSelected] = useState('');
+    const [busFilter, setBusFilter] = useState('');
     const [stats, setStats] = useState({ drivers: 0, students: 0, active: 0 });
 
     useEffect(() => {
@@ -122,16 +123,27 @@ export default function AdminDashboard() {
 
                 {active === 'drivers' && (
                     <div>
-                        <h2 style={s.pageTitle}>Bus Drivers</h2>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                            <h2 style={s.pageTitle}>Bus Drivers</h2>
+                            <select style={s.select} value={busFilter} onChange={e => setBusFilter(e.target.value)}>
+                                <option value="">All Bus IDs</option>
+                                {[...new Set(drivers.map(d => d.bus_id).filter(b => b && b !== '—'))].map(bid => (
+                                    <option key={bid} value={bid}>{bid}</option>
+                                ))}
+                            </select>
+                        </div>
                         <table style={s.table}>
-                            <thead><tr>{['Name', 'Bus ID', 'Starting Point', 'Status'].map(h => <th key={h} style={s.th}>{h}</th>)}</tr></thead>
+                            <thead><tr>{['Name', 'Bus ID', 'Starting Point', 'Status', 'Reached College'].map(h => <th key={h} style={s.th}>{h}</th>)}</tr></thead>
                             <tbody>
-                                {drivers.map(d => (
+                                {drivers
+                                    .filter(d => !busFilter || d.bus_id === busFilter)
+                                    .map(d => (
                                     <tr key={d.username}>
                                         <td style={s.td}>{d.username}</td>
                                         <td style={s.td}>{d.bus_id || '—'}</td>
                                         <td style={s.td}>{d.starting_point || '—'}</td>
                                         <td style={s.td}><span style={{ ...s.badge, background: d.status === 'Active' ? '#2ecc71' : '#e74c3c' }}>{d.status || 'Offline'}</span></td>
+                                        <td style={s.td}><span style={{ ...s.badge, background: d.reached_college ? '#2ecc71' : '#e67e22' }}>{d.reached_college ? 'Yes' : 'No'}</span></td>
                                     </tr>
                                 ))}
                             </tbody>

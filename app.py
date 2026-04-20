@@ -291,47 +291,16 @@ def update_location():
         if s_lat is None or s_lon is None: continue
 
         _, road_dist, _ = get_osrm_data(data['latitude'], data['longitude'], s_lat, s_lon)
-        feat = pd.DataFrame([{
-            'dist_to_stop': road_dist,
-            'current_speed': data['speed'] or 25,
-            'hour': now.hour, 'day_of_week': now.weekday(),
-            'traffic_index': data['traffic_index']
-        }])
-        eta = predict_with_model(feat)
         updates = {}
 
-        # Predictive Alert
-        if eta <= 10.0 and not s.get('predictive_alert_sent'):
-            send_sns_notification(s['username'], "Bus Arriving Soon",
-                f"Hi {s['username']}, bus reaching {s.get('boarding_point')} in {round(eta,1)} mins.")
-            updates['predictive_alert_sent'] = True
-            updates['alert_sent_at'] = now.isoformat()
-
-        # Arrival Alert
-        if s.get('is_waiting') and road_dist <= dyn_radius and not s.get('arrival_alert_sent'):
-            traffic_status = (
-                "🔴 Heavy traffic" if data['traffic_index'] > 0.7
-                else "🟡 Moderate traffic" if data['traffic_index'] > 0.4
-                else "🟢 Clear roads"
-            )
-            send_sns_notification(s['username'], "SmartBus: Bus Has Arrived!",
-                f"Hi {s['username']},\n\n"
-                f"📍 ARRIVAL ALERT: Bus is NOW at {s.get('boarding_point', 'your stop')}!\n"
-                f"Traffic: {traffic_status} (index: {data['traffic_index']})\n"
-                f"Geofence radius: {int(dyn_radius)}m\n"
-                f"Board the bus now!\n\n"
-                f"- Smart Bus System")
-            updates['arrival_alert_sent'] = True
-            updates['alert_sent_at'] = now.isoformat()
-
-        # TTL Reset
+        # TTL Reset — reset flags when bus moves far away (next trip)
         alert_sent_at = s.get('alert_sent_at')
-        if alert_sent_at and s.get('predictive_alert_sent'):
-            sent_time = datetime.fromisoformat(alert_sent_at)
-            if (now - sent_time).total_seconds() > ALERT_TTL_MINUTES * 60:
-                updates.update({'predictive_alert_sent': False, 'arrival_alert_sent': False, 'alert_sent_at': None})
-        if road_dist > 2000:
-            updates.update({'predictive_alert_sent': False, 'arrival_alert_sent': False, 'alert_sent_at': None})
+        if road_dist > 2000 and (s.get('predictive_alert_sent') or s.get('arrival_alert_sent')):
+            updates.update({
+                'predictive_alert_sent': False,
+                'arrival_alert_sent': False,
+                'alert_sent_at': None
+            })
 
         if updates:
             update_user(s['username'], updates)

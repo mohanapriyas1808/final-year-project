@@ -396,7 +396,37 @@ def get_bus_status():
     if username:
         u = get_user(username)
         if u and u.get('lat'):
-            res.update({"user_lat": to_float(u['lat']), "user_lon": to_float(u['lon'])})
+            u_lat = to_float(u['lat'])
+            u_lon = to_float(u['lon'])
+            res.update({"user_lat": u_lat, "user_lon": u_lon})
+
+            # Use Lambda-predicted ETA if available (matches email exactly)
+            last_predicted_eta = u.get('last_predicted_eta')
+            if last_predicted_eta:
+                personal_eta = float(last_predicted_eta)
+            else:
+                # Fallback: calculate locally
+                _, u_dist, u_dur = get_osrm_data(
+                    latest_bus_data['lat'], latest_bus_data['lon'], u_lat, u_lon)
+                now = datetime.now()
+                feat = pd.DataFrame([{
+                    'dist_to_stop':  u_dist,
+                    'current_speed': latest_bus_data['speed'] or 25,
+                    'hour':          now.hour,
+                    'day_of_week':   now.weekday(),
+                    'traffic_index': latest_bus_data['traffic_index']
+                }])
+                ml_eta = predict_with_model(feat)
+                personal_eta = max(ml_eta, u_dur/60) * (1 + latest_bus_data['traffic_index'] * 0.2)
+
+            res['personal_eta'] = round(personal_eta, 1)
+
+            # Update the student's stop in upcoming_stops with the same ETA
+            boarding = u.get('boarding_point', '').strip().lower()
+            for stop in res['upcoming_stops']:
+                if stop['name'].strip().lower() == boarding:
+                    stop['eta'] = res['personal_eta']
+                    break
 
     return jsonify(res)
 

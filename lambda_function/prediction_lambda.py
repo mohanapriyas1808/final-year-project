@@ -72,6 +72,14 @@ def get_waiting_students():
     return [s for s in res.get('Items', []) if s.get('is_waiting') is True]
 
 
+def get_stop_coords():
+    """Fetch stop coordinates from SmartBus_BusStops table."""
+    table = dynamodb.Table('SmartBus_BusStops')
+    items = table.scan().get('Items', [])
+    # Return dict: {stop_name_lower: (lat, lon)}
+    return {s['name'].strip().lower(): (float(s['lat']), float(s['lon'])) for s in items}
+
+
 def get_stop_etas_from_flask():
     """
     Fetch upcoming_stops ETAs directly from Flask bus_status.
@@ -158,14 +166,15 @@ def lambda_handler(event, context):
 
     print(f"[BUS STATE] lat={bus_lat}, lon={bus_lon}, speed={bus_speed}, traffic={traffic_index}")
 
-    # Step 2: Get waiting students
-    students = get_waiting_students()
+    # Step 2: Get waiting students + stop coordinates
+    students   = get_waiting_students()
+    stop_coords = get_stop_coords()
     print(f"[STUDENTS] {len(students)} waiting")
 
     results = []
     for s in students:
         username  = s['username']
-        stop_name = s.get('boarding_point', 'your stop')
+        stop_name = s.get('boarding_point', '').strip()
         s_lat     = float(s.get('lat') or 0)
         s_lon     = float(s.get('lon') or 0)
 
@@ -173,11 +182,22 @@ def lambda_handler(event, context):
             print(f"[SKIP] {username} has no GPS coords")
             continue
 
+        # Use student's actual GPS — matches dashboard personal ETA
         eta = call_predict_eta(bus_lat, bus_lon, bus_speed, traffic_index, s_lat, s_lon)
         if eta is None:
             continue
 
         print(f"[ETA] {username} @ {stop_name}: {eta} mins")
+
+        # Store ETA in DynamoDB so dashboard can read the same value
+        try:
+            dynamodb.Table(USERS_TABLE).update_item(
+                Key={'username': username},
+                UpdateExpression='SET last_predicted_eta = :e',
+                ExpressionAttributeValues={':e': str(round(eta, 1))}
+            )
+        except Exception as e:
+            print(f"[DYNAMO ETA STORE ERROR] {e}")
 
         if eta <= ETA_THRESHOLD and not s.get('predictive_alert_sent'):
             send_eta_alert(username, stop_name, round(eta, 1), bus_id)

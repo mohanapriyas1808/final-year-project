@@ -72,11 +72,28 @@ def get_waiting_students():
     return [s for s in res.get('Items', []) if s.get('is_waiting') is True]
 
 
+def get_stop_etas_from_flask():
+    """
+    Fetch upcoming_stops ETAs directly from Flask bus_status.
+    This ensures the same ETA shown on dashboard is used in the email.
+    """
+    req = urllib.request.Request(
+        f"{FLASK_URL}/api/bus_status",
+        method='GET'
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            result = json.loads(resp.read().decode())
+            stops = result.get('upcoming_stops', [])
+            # Return dict: {stop_name_lower: eta_mins}
+            return {s['name'].strip().lower(): float(s['eta']) for s in stops}
+    except Exception as e:
+        print(f"[BUS_STATUS ERROR] {e}")
+        return {}
+
+
 def call_predict_eta(bus_lat, bus_lon, bus_speed, traffic_index, stop_lat, stop_lon):
-    """
-    Call local Flask /api/predict_eta endpoint.
-    Returns predicted ETA in minutes.
-    """
+    """Call Flask /api/predict_eta endpoint."""
     payload = json.dumps({
         'bus_lat':       bus_lat,
         'bus_lon':       bus_lon,

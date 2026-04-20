@@ -340,7 +340,7 @@ def update_location():
 
 @app.route('/api/predict_eta', methods=['POST'])
 def predict_eta():
-    """Called by Prediction Lambda to get ETA from local XGBoost model."""
+    """Called by Prediction Lambda — uses same ETA formula as dashboard."""
     data      = request.json
     bus_lat   = data['bus_lat']
     bus_lon   = data['bus_lon']
@@ -349,7 +349,7 @@ def predict_eta():
     speed     = data.get('speed', 25) or 25
     traffic   = data.get('traffic_index', 0.4)
 
-    _, dist, _ = get_osrm_data(bus_lat, bus_lon, stop_lat, stop_lon)
+    _, dist, dur = get_osrm_data(bus_lat, bus_lon, stop_lat, stop_lon)
     now  = datetime.now()
     feat = pd.DataFrame([{
         'dist_to_stop':   dist,
@@ -358,7 +358,9 @@ def predict_eta():
         'day_of_week':    now.weekday(),
         'traffic_index':  traffic
     }])
-    eta = predict_with_model(feat)
+    ml_eta = predict_with_model(feat)
+    # Same formula as dashboard
+    eta = max(ml_eta, dur/60) * (1 + traffic * 0.2)
     return jsonify({'eta_mins': round(eta, 1), 'dist_m': int(dist)})
 
 @app.route('/api/bus_status', methods=['GET'])

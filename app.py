@@ -209,7 +209,8 @@ def login():
         update_user(u['username'], {
             'predictive_alert_sent': False,
             'arrival_alert_sent': False,
-            'alert_sent_at': None
+            'alert_sent_at': None,
+            'reached_college': False
         })
         return jsonify({
             "status": "success",
@@ -462,27 +463,32 @@ def admin_drivers():
     drivers = scan_by_role('driver')
     COLLEGE_LAT, COLLEGE_LON = 12.8716, 80.2201
     result = []
+    COLLEGE_LAT, COLLEGE_LON = 12.8716, 80.2201
     for d in drivers:
         is_active = (latest_bus_data.get('driver_name') == d['username'] and
                      (datetime.now(UTC) - latest_bus_data['last_ping']).seconds < 40)
         d_lat = latest_bus_data.get('lat') if is_active else None
         d_lon = latest_bus_data.get('lon') if is_active else None
 
-        # Check if bus has reached college (within 200m)
-        reached = False
+        # Check if bus has reached college (within 200m) using live GPS
+        reached = bool(d.get('reached_college', False))  # read from DB first
         if d_lat and d_lon:
             dist = haversine_distance(d_lat, d_lon, COLLEGE_LAT, COLLEGE_LON)
-            reached = dist <= 200
+            if dist <= 200:
+                reached = True
+                # Persist to DynamoDB so it stays True even after driver stops
+                if not d.get('reached_college'):
+                    update_user(d['username'], {'reached_college': True})
 
         result.append({
-            'username':       d['username'],
-            'email':          d.get('email', '—'),
-            'bus_id':         d.get('bus_id', '—'),
-            'starting_point': d.get('starting_point', '—'),
-            'status':         'Active' if is_active else 'Offline',
-            'lat':            d_lat,
-            'lon':            d_lon,
-            'speed':          latest_bus_data.get('speed', 0) if is_active else 0,
+            'username':        d['username'],
+            'email':           d.get('email', '—'),
+            'bus_id':          d.get('bus_id', '—'),
+            'starting_point':  d.get('starting_point', '—'),
+            'status':          'Active' if is_active else 'Offline',
+            'lat':             d_lat,
+            'lon':             d_lon,
+            'speed':           latest_bus_data.get('speed', 0) if is_active else 0,
             'reached_college': reached
         })
     return jsonify({'drivers': result})

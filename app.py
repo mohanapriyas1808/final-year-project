@@ -309,8 +309,18 @@ def update_location():
 
         # Arrival Alert
         if s.get('is_waiting') and road_dist <= dyn_radius and not s.get('arrival_alert_sent'):
-            send_sns_notification(s['username'], "Bus at Stop",
-                f"Hi {s['username']}, bus is AT your stop! Board now.")
+            traffic_status = (
+                "🔴 Heavy traffic" if data['traffic_index'] > 0.7
+                else "🟡 Moderate traffic" if data['traffic_index'] > 0.4
+                else "🟢 Clear roads"
+            )
+            send_sns_notification(s['username'], "SmartBus: Bus Has Arrived!",
+                f"Hi {s['username']},\n\n"
+                f"📍 ARRIVAL ALERT: Bus is NOW at {s.get('boarding_point', 'your stop')}!\n"
+                f"Traffic: {traffic_status} (index: {data['traffic_index']})\n"
+                f"Geofence radius: {int(dyn_radius)}m\n"
+                f"Board the bus now!\n\n"
+                f"- Smart Bus System")
             updates['arrival_alert_sent'] = True
             updates['alert_sent_at'] = now.isoformat()
 
